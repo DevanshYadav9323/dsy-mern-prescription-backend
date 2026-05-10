@@ -14,7 +14,11 @@ const prescriptionRouter = require("./routes/prescription");
 
 const app = express();
 
-app.use(cors());
+// app.use(cors());
+
+app.use(cors({
+  origin: "*"
+}));
 
 app.use(logger("dev"));
 
