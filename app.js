@@ -1,137 +1,73 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var mongoose = require('mongoose');
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-var customerRouter = require('./routes/customer');
-var categoryRouter = require('./routes/category');
-var cartRouter = require('./routes/cart');
-var offerRouter = require('./routes/offer');
-var orderRouter = require('./routes/order');
-var brandRouter = require('./routes/brand');
-var productRouter = require('./routes/product');
-var shopRouter = require('./routes/shop');
-var slotRouter = require('./routes/slot');
-var companyRouter = require('./routes/company');
-var adminRouter = require('./routes/admin');
-var scanRouter = require('./routes/scan')
-var systemConfigRouter = require('./routes/systemConfig')
-// var razorpayRouter = require('./routes/razorpay')
-var noteRouter = require('./routes/note')
-var queryRouter = require('./routes/query')
-var redeemRouter = require('./routes/redeemReq')
-var faqRouter = require('./routes/faq')
-var broadcastRouter = require('./routes/broadcasts')
-var dashboardRouter = require('./routes/dashboard')
-const cron = require("node-cron");
-const { sendScheduledBroadcasts } = require("./cron/broadcastCron");
-const { runSettlementSummaryTick } = require("./cron/settlementSummaryCron");
+require("dotenv").config();
 
+const express = require("express");
+const path = require("path");
+const cookieParser = require("cookie-parser");
+const logger = require("morgan");
+const mongoose = require("mongoose");
+const cors = require("cors");
 
-require('dotenv').config()
+const doctorRouter = require("./routes/doctor");
+const patientRouter = require("./routes/patient");
+const consultationRouter = require("./routes/consultation");
+const prescriptionRouter = require("./routes/prescription");
 
-var app = express();
-const cors = require('cors');
-// const { updateUrlInDb, updateDescInDB, deleteProdFromDB } = require('./lib/helper');
+const app = express();
+
 app.use(cors());
 
-mongoose.set('debug', true);
-mongoose.Promise = global.Promise;
-mongoose.connect(process.env.db, { useNewUrlParser: true });
-console.log("Database Connected Successfully");
+app.use(logger("dev"));
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
+app.use(express.json({
+  limit: "50mb"
+}));
 
-app.use(logger('dev'));
-app.use(express.json({ limit: '500mb', extended: true }));
-app.use(express.urlencoded({ limit:'100mb',extended: false }));
+app.use(express.urlencoded({
+  extended: true,
+  limit: "50mb"
+}));
+
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
-app.use('/customer', customerRouter);
-app.use('/cart', cartRouter);
-app.use('/category', categoryRouter);
-app.use('/offer', offerRouter);
-app.use('/order', orderRouter);
-app.use('/product', productRouter);
-app.use('/shop', shopRouter);
-app.use('/brand', brandRouter);
-app.use('/dashboard', dashboardRouter);
+app.use(express.static(path.join(__dirname, "public")));
 
-app.use('/slot', slotRouter);
-app.use('/company', companyRouter);
-app.use('/admin', adminRouter);
-app.use('/scans', scanRouter);  
-app.use('/system_config', systemConfigRouter);
-// app.use('/razorpay', razorpayRouter);
-app.use('/note', noteRouter);
-app.use('/query', queryRouter);
-app.use('/redeem', redeemRouter);
-app.use('/faq', faqRouter);
-app.use('/broadcast', broadcastRouter);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-
-// Broadcast Cron
-
-cron.schedule(
-  "30 12 * * *",
-  async () => {
-    console.log("Running 12:30 PM IST broadcast cron");
-    await sendScheduledBroadcasts("12:30 PM");
-  },
-  {
-    timezone: "Asia/Kolkata",
-  }
-);
-
-cron.schedule(
-  "30 18 * * *",
-  async () => {
-    console.log("Running 6:30 PM IST broadcast cron");
-    await sendScheduledBroadcasts("06:30 PM");
-  },
-  {
-    timezone: "Asia/Kolkata",
-  }
-);
-
-// Daily per-shop settlement summary. summary_time is restricted to half-hour
-// slots, so the tick runs at :00 and :30 IST only.
-cron.schedule(
-  "0,30 * * * *",
-  async () => {
-    await runSettlementSummaryTick();
-  },
-  {
-    timezone: "Asia/Kolkata",
-  }
-);
-
-
-
-// updateUrlInDb()
-// updateDescInDB()
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => {
+  console.log("MongoDB Connected");
+})
+.catch((err) => {
+  console.log(err);
 });
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "Prescription API Running"
+  });
+});
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
+app.use("/consultation", consultationRouter);
+app.use("/doctor", doctorRouter);
+app.use("/patient", patientRouter);
+app.use("/prescription", prescriptionRouter);
+
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    message: "Route Not Found"
+  });
+});
+
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Server Error"
+  });
 });
 
 module.exports = app;
